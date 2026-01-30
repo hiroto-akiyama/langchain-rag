@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社内ドキュメント検索AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+        }
+        .chat-message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+        }
+        .chat-message.user {
+            background-color: #0d6efd;
+            color: white;
+            margin-left: 20%;
+        }
+        .chat-message.assistant {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            margin-right: 20%;
+        }
+        .source-card {
+            font-size: 0.85rem;
+        }
+        .search-result {
+            border-left: 4px solid #0d6efd;
+        }
+        .score-badge {
+            font-size: 0.75rem;
+        }
+        .loading {
+            display: none;
+        }
+        .document-status {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-search"></i> 社内ドキュメント検索AI
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- タブナビゲーション -->
+        <ul class="nav nav-tabs" id="mainTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button">
+                    <i class="bi bi-cloud-upload"></i> アップロード
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button">
+                    <i class="bi bi-file-earmark-text"></i> ドキュメント一覧
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="search-tab" data-bs-toggle="tab" data-bs-target="#search" type="button">
+                    <i class="bi bi-search"></i> 検索
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button">
+                    <i class="bi bi-chat-dots"></i> チャット
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content mt-4" id="mainTabContent">
+            <!-- アップロードタブ -->
+            <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8 offset-md-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-cloud-upload"></i> ドキュメントアップロード</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="uploadForm">
+                                    <div class="mb-3">
+                                        <label for="file" class="form-label">ファイル選択 <span class="text-danger">*</span></label>
+                                        <input type="file" class="form-control" id="file" name="file" required
+                                               accept=".pdf,.docx,.doc,.txt,.md">
+                                        <div class="form-text">対応形式: PDF, Word (.docx, .doc), テキスト (.txt), Markdown (.md)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="title" class="form-label">タイトル</label>
+                                        <input type="text" class="form-control" id="title" name="title"
+                                               placeholder="ドキュメントのタイトル（省略可）">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="tags" class="form-label">タグ</label>
+                                        <input type="text" class="form-control" id="tags" name="tags"
+                                               placeholder="カンマ区切りでタグを入力（例: 規則, 人事, 2024年）">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                        <i class="bi bi-upload"></i> アップロード
+                                    </button>
+                                    <span class="loading ms-2" id="uploadLoading">
+                                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                                        処理中...
+                                    </span>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- アップロード結果 -->
+                        <div class="mt-3" id="uploadResult" style="display: none;">
+                            <div class="alert" id="uploadAlert">
+                                <div id="uploadMessage"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ドキュメント一覧タブ -->
+            <div class="tab-pane fade" id="documents" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5><i class="bi bi-file-earmark-text"></i> ドキュメント一覧</h5>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadDocuments()">
+                        <i class="bi bi-arrow-clockwise"></i> 更新
+                    </button>
+                </div>
+                <div class="loading text-center py-4" id="documentsLoading">
+                    <span class="spinner-border" role="status"></span>
+                    <p class="mt-2">読み込み中...</p>
+                </div>
+                <div id="documentsList"></div>
+                <nav id="documentsPagination" class="mt-3"></nav>
+            </div>
+
+            <!-- 検索タブ -->
+            <div class="tab-pane fade" id="search" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-10 offset-md-1">
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <form id="searchForm">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control form-control-lg" id="searchQuery"
+                                               placeholder="検索キーワードを入力..." required>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-search"></i> 検索
+                                        </button>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">取得件数</label>
+                                            <select class="form-select" id="searchTopK">
+                                                <option value="5" selected>5件</option>
+                                                <option value="10">10件</option>
+                                                <option value="20">20件</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">スコア閾値</label>
+                                            <input type="number" class="form-control" id="searchThreshold"
+                                                   min="0" max="1" step="0.1" value="0">
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="loading text-center py-4" id="searchLoading">
+                            <span class="spinner-border" role="status"></span>
+                            <p class="mt-2">検索中...</p>
+                        </div>
+                        <div id="searchResults"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- チャットタブ -->
+            <div class="tab-pane fade" id="chat" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-10 offset-md-1">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-chat-dots"></i> RAG質問応答</span>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()">
+                                    <i class="bi bi-trash"></i> クリア
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="chat-container" id="chatContainer">
+                                    <div class="text-center text-muted py-5">
+                                        <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+                                        <p class="mt-2">ドキュメントに関する質問を入力してください</p>
+                                    </div>
+                                </div>
+                                <form id="chatForm" class="mt-3">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="chatQuestion"
+                                               placeholder="質問を入力..." required>
+                                        <button type="submit" class="btn btn-primary" id="chatBtn">
+                                            <i class="bi bi-send"></i> 送信
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- 参照元情報 -->
+                        <div class="mt-3" id="chatSources" style="display: none;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="bi bi-journal-text"></i> 参照元ドキュメント
+                                </div>
+                                <div class="card-body" id="chatSourcesList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-3 bg-light">
+        <div class="container text-center text-muted">
+            <small>社内ドキュメント検索AI - RAGシステム</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = '/api/v1';
+        let chatHistory = [];
+        let currentPage = 1;
+
+        // APIレスポンスを安全にパースするヘルパー関数
+        async function parseResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+
+            if (contentType.includes('application/json')) {
+                try {
+                    return await response.json();
+                } catch (e) {
+                    return { detail: 'サーバーからの応答を解析できませんでした' };
+                }
+            } else {
+                // JSONでない場合はテキストとして取得
+                const text = await response.text();
+                return { detail: text || `サーバーエラー (${response.status})` };
+            }
+        }
+
+        // ユーザーフレンドリーなエラーメッセージを生成
+        function getErrorMessage(error, response) {
+            if (!response) {
+                // ネットワークエラー
+                if (error.message.includes('Failed to fetch')) {
+                    return 'サーバーに接続できません。サーバーが起動しているか確認してください。';
+                }
+                return `通信エラー: ${error.message}`;
+            }
+
+            // HTTPステータスコードに基づくメッセージ
+            switch (response.status) {
+                case 400:
+                    return error.detail || 'リクエストが不正です。入力内容を確認してください。';
+                case 404:
+                    return 'リソースが見つかりません。';
+                case 413:
+                    return 'ファイルサイズが大きすぎます。50MB以下のファイルを選択してください。';
+                case 422:
+                    return error.detail || '入力データの形式が正しくありません。';
+                case 500:
+                    return 'サーバー内部エラーが発生しました。データベースやQdrantの接続を確認してください。';
+                case 502:
+                case 503:
+                case 504:
+                    return 'サーバーが一時的に利用できません。しばらく待ってから再試行してください。';
+                default:
+                    return error.detail || `エラーが発生しました (${response.status})`;
+            }
+        }
+
+        // アップロード処理
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            const titleInput = document.getElementById('title');
+            const tagsInput = document.getElementById('tags');
+
+            formData.append('file', fileInput.files[0]);
+            if (titleInput.value) {
+                formData.append('title', titleInput.value);
+            }
+            if (tagsInput.value) {
+                const tags = tagsInput.value.split(',').map(t => t.trim()).filter(t => t);
+                tags.forEach(tag => formData.append('tags', tag));
+            }
+
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('uploadLoading').style.display = 'inline';
+            document.getElementById('uploadResult').style.display = 'none';
+
+            let response = null;
+            try {
+                response = await fetch(`${API_BASE}/documents/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await parseResponse(response);
+                const alertDiv = document.getElementById('uploadAlert');
+                const messageDiv = document.getElementById('uploadMessage');
+
+                if (response.ok) {
+                    alertDiv.className = 'alert alert-success';
+                    messageDiv.innerHTML = `
+                        <strong><i class="bi bi-check-circle"></i> アップロード成功!</strong><br>
+                        ファイル名: ${result.filename}<br>
+                        チャンク数: ${result.chunk_count}<br>
+                        ステータス: ${result.status}
+                    `;
+                    document.getElementById('uploadForm').reset();
+                } else {
+                    alertDiv.className = 'alert alert-danger';
+                    const errorMsg = getErrorMessage(result, response);
+                    messageDiv.innerHTML = `<strong><i class="bi bi-x-circle"></i> エラー:</strong> ${escapeHtml(errorMsg)}`;
+                }
+                document.getElementById('uploadResult').style.display = 'block';
+            } catch (error) {
+                const alertDiv = document.getElementById('uploadAlert');
+                const messageDiv = document.getElementById('uploadMessage');
+                alertDiv.className = 'alert alert-danger';
+                const errorMsg = getErrorMessage(error, response);
+                messageDiv.innerHTML = `<strong><i class="bi bi-x-circle"></i> エラー:</strong> ${escapeHtml(errorMsg)}`;
+                document.getElementById('uploadResult').style.display = 'block';
+            } finally {
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('uploadLoading').style.display = 'none';
+            }
+        });
+
+        // ドキュメント一覧読み込み
+        async function loadDocuments(page = 1) {
+            currentPage = page;
+            document.getElementById('documentsLoading').style.display = 'block';
+            document.getElementById('documentsList').innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/documents?page=${page}&per_page=10`);
+                const data = await response.json();
+
+                if (data.items.length === 0) {
+                    document.getElementById('documentsList').innerHTML = `
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-folder2-open" style="font-size: 3rem;"></i>
+                            <p class="mt-2">ドキュメントがありません</p>
+                        </div>
+                    `;
+                } else {
+                    let html = '<div class="list-group">';
+                    data.items.forEach(doc => {
+                        const statusClass = doc.status === 'indexed' ? 'success' :
+                                          doc.status === 'processing' ? 'warning' : 'danger';
+                        const tags = doc.tags && doc.tags.length > 0
+                            ? doc.tags.map(t => `<span class="badge bg-secondary me-1">${t}</span>`).join('')
+                            : '';
+                        html += `
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">${doc.title || doc.filename}</h6>
+                                        <small class="text-muted">${doc.filename}</small>
+                                        <div class="mt-1">${tags}</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-${statusClass} document-status">${doc.status}</span>
+                                        <br>
+                                        <small class="text-muted">${doc.chunk_count} チャンク</small>
+                                        <br>
+                                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="deleteDocument('${doc.id}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    document.getElementById('documentsList').innerHTML = html;
+
+                    // ページネーション
+                    const totalPages = Math.ceil(data.total / data.per_page);
+                    if (totalPages > 1) {
+                        let paginationHtml = '<ul class="pagination justify-content-center">';
+                        for (let i = 1; i <= totalPages; i++) {
+                            paginationHtml += `
+                                <li class="page-item ${i === page ? 'active' : ''}">
+                                    <a class="page-link" href="#" onclick="loadDocuments(${i}); return false;">${i}</a>
+                                </li>
+                            `;
+                        }
+                        paginationHtml += '</ul>';
+                        document.getElementById('documentsPagination').innerHTML = paginationHtml;
+                    }
+                }
+            } catch (error) {
+                document.getElementById('documentsList').innerHTML = `
+                    <div class="alert alert-danger">エラー: ${error.message}</div>
+                `;
+            } finally {
+                document.getElementById('documentsLoading').style.display = 'none';
+            }
+        }
+
+        // ドキュメント削除
+        async function deleteDocument(id) {
+            if (!confirm('このドキュメントを削除しますか？')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/documents/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadDocuments(currentPage);
+                } else {
+                    const error = await response.json();
+                    alert('削除に失敗しました: ' + (error.detail || ''));
+                }
+            } catch (error) {
+                alert('エラー: ' + error.message);
+            }
+        }
+
+        // 検索処理
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const query = document.getElementById('searchQuery').value;
+            const topK = document.getElementById('searchTopK').value;
+            const threshold = document.getElementById('searchThreshold').value;
+
+            document.getElementById('searchLoading').style.display = 'block';
+            document.getElementById('searchResults').innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: parseInt(topK),
+                        score_threshold: parseFloat(threshold)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.results.length === 0) {
+                    document.getElementById('searchResults').innerHTML = `
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-search" style="font-size: 3rem;"></i>
+                            <p class="mt-2">検索結果が見つかりませんでした</p>
+                        </div>
+                    `;
+                } else {
+                    let html = `<p class="text-muted mb-3">${data.total}件の結果</p>`;
+                    data.results.forEach((result, index) => {
+                        const score = (result.score * 100).toFixed(1);
+                        html += `
+                            <div class="card mb-3 search-result">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="card-title">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                            ${result.metadata.title || result.metadata.filename || 'Unknown'}
+                                        </h6>
+                                        <span class="badge bg-primary score-badge">スコア: ${score}%</span>
+                                    </div>
+                                    <p class="card-text">${result.content}</p>
+                                    <small class="text-muted">
+                                        ${result.metadata.filename || ''}
+                                        ${result.metadata.page_number ? ` - ページ ${result.metadata.page_number}` : ''}
+                                    </small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('searchResults').innerHTML = html;
+                }
+            } catch (error) {
+                document.getElementById('searchResults').innerHTML = `
+                    <div class="alert alert-danger">エラー: ${error.message}</div>
+                `;
+            } finally {
+                document.getElementById('searchLoading').style.display = 'none';
+            }
+        });
+
+        // チャット処理
+        document.getElementById('chatForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const question = document.getElementById('chatQuestion').value;
+            if (!question.trim()) return;
+
+            // ユーザーメッセージを表示
+            const chatContainer = document.getElementById('chatContainer');
+            if (chatHistory.length === 0) {
+                chatContainer.innerHTML = '';
+            }
+
+            chatContainer.innerHTML += `
+                <div class="chat-message user">
+                    <strong>あなた:</strong><br>${escapeHtml(question)}
+                </div>
+            `;
+
+            document.getElementById('chatQuestion').value = '';
+            document.getElementById('chatBtn').disabled = true;
+
+            // ローディング表示
+            chatContainer.innerHTML += `
+                <div class="chat-message assistant" id="loadingMessage">
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                    考え中...
+                </div>
+            `;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: question,
+                        chat_history: chatHistory,
+                        top_k: 5
+                    })
+                });
+
+                const data = await response.json();
+
+                // ローディング削除
+                document.getElementById('loadingMessage').remove();
+
+                if (response.ok) {
+                    // アシスタントメッセージを表示
+                    chatContainer.innerHTML += `
+                        <div class="chat-message assistant">
+                            <strong>AI:</strong><br>${escapeHtml(data.answer).replace(/\n/g, '<br>')}
+                        </div>
+                    `;
+
+                    // 履歴に追加
+                    chatHistory.push({ role: 'user', content: question });
+                    chatHistory.push({ role: 'assistant', content: data.answer });
+
+                    // 参照元を表示
+                    if (data.sources && data.sources.length > 0) {
+                        document.getElementById('chatSources').style.display = 'block';
+                        let sourcesHtml = '';
+                        data.sources.forEach(source => {
+                            const score = (source.score * 100).toFixed(1);
+                            sourcesHtml += `
+                                <div class="card mb-2 source-card">
+                                    <div class="card-body py-2">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>${source.title || source.filename || 'Unknown'}</strong>
+                                            <span class="badge bg-secondary">${score}%</span>
+                                        </div>
+                                        <small class="text-muted">
+                                            ${source.filename || ''}
+                                            ${source.page_number ? ` - ページ ${source.page_number}` : ''}
+                                        </small>
+                                        <p class="mb-0 mt-1 small">${escapeHtml(source.chunk_content).substring(0, 200)}...</p>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        document.getElementById('chatSourcesList').innerHTML = sourcesHtml;
+                    }
+                } else {
+                    chatContainer.innerHTML += `
+                        <div class="chat-message assistant">
+                            <strong class="text-danger">エラー:</strong><br>${data.detail || 'エラーが発生しました'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('loadingMessage').remove();
+                chatContainer.innerHTML += `
+                    <div class="chat-message assistant">
+                        <strong class="text-danger">エラー:</strong><br>${error.message}
+                    </div>
+                `;
+            } finally {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                document.getElementById('chatBtn').disabled = false;
+            }
+        });
+
+        // チャットクリア
+        function clearChat() {
+            chatHistory = [];
+            document.getElementById('chatContainer').innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+                    <p class="mt-2">ドキュメントに関する質問を入力してください</p>
+                </div>
+            `;
+            document.getElementById('chatSources').style.display = 'none';
+        }
+
+        // HTMLエスケープ
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // タブ切り替え時にドキュメント読み込み
+        document.getElementById('documents-tab').addEventListener('shown.bs.tab', () => {
+            loadDocuments();
+        });
+    </script>
+</body>
+</html>

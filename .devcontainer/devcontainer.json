@@ -1,0 +1,30 @@
+{
+  "name": "LangChain and Rag Application",
+  "dockerComposeFile": "./docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/home/python/workspace",
+  "remoteUser": "python",
+  "updateRemoteUserUID": false,
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/python/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/python/.claude.json,type=bind,consistency=cached"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "formulahendry.auto-rename-tag",
+        "ms-vscode.vscode-json",
+        "yzhang.markdown-all-in-one",
+        "anthropics.claude-code",
+        "ms-python.python",
+        "ms-python.debugpy"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": { "source.fixAll": "explicit" }
+      }
+    }
+  }
+}
