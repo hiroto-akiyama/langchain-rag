@@ -162,14 +162,14 @@ app/
 
 ```bash
 # 1. リポジトリのクローン
-git clone <repository-url>
-cd <project-directory>
+git clone https://github.com/hiroto-akiyama/langchain-rag
+cd langchain-rag
 
 # 2. 環境変数の設定
 cp .env.sample .env
 
 # 3. .envファイルを編集してOpenAI APIキーを設定
-# OPENAI_API_KEY=sk-xxxxx
+OPENAI_API_KEY=sk-xxxxx
 
 # 4. Docker Composeで起動
 docker compose up -d
